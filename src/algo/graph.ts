@@ -1,4 +1,5 @@
 /** Shared graph types. Both general graphs and grids are converted to this form before running an algorithm. */
+import type { PQTrace, PriorityQueue } from './heap';
 
 export interface Edge {
   to: number;
@@ -14,13 +15,17 @@ export interface Graph {
 export type Heuristic = (v: number) => number;
 
 /**
- * Events an algorithm emits one at a time.
+ * Events an algorithm emits one at a time (one event = one operation).
  * The visualization only looks at these events to draw the screen (algorithm and rendering are decoupled).
+ * `heap` is what the priority queue did during that operation.
  */
 export type Step =
-  | { type: 'push'; node: number; g: number; f: number } // pushed onto the priority queue (frontier)
-  | { type: 'visit'; node: number; g: number } // popped from the queue and settled (closed)
-  | { type: 'done'; path: number[]; cost: number } // reached the goal
+  | { type: 'init'; node: number; g: number; f: number; pq: PriorityQueue<number>; heap: PQTrace | null } // start pushed
+  | { type: 'visit'; node: number; g: number; key: number; tieBroken: boolean; heap: PQTrace | null } // deletemin → settled
+  | { type: 'stale'; node: number; key: number; heap: PQTrace | null } // deletemin returned an outdated copy → skipped
+  | { type: 'relax'; from: number; node: number; w: number; result: 'closed' | 'noImprove'; ng: number; old: number } // edge checked, nothing changed
+  | { type: 'push'; from: number; node: number; w: number; g: number; f: number; old: number; mode: 'insert' | 'decrease' | 'reinsert'; heap: PQTrace | null } // shorter path → queue updated
+  | { type: 'done'; path: number[]; cost: number; early: boolean; left: number } // goal settled
   | { type: 'fail' }; // no path exists
 
 export type SearchGenerator = Generator<Step, void, unknown>;

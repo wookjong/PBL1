@@ -1,18 +1,13 @@
 import { astar } from '../algo/astar';
 import { dijkstra } from '../algo/dijkstra';
-import type { Edge, Graph, Heuristic, SearchGenerator } from '../algo/graph';
+import type { Graph, Heuristic, SearchGenerator } from '../algo/graph';
 import { NodeState, SearchRun } from '../algo/run';
+import { COLS, EMPTY, enclosedGoal, gridToGraph, maze, MUD, MUD_COST, ROWS, uTrap, WALL, type GridSpec } from '../graphs/grids';
+import { num, t } from '../i18n';
 import { Player } from '../ui/player';
+import type { GridHeurKey } from './analysisDemo';
 
-// Rows/columns must be odd for the maze generator
-const ROWS = 25;
-const COLS = 49;
 const CELL = 20; // cell size in canvas pixels (CSS scales the canvas to fit the screen)
-
-const EMPTY = 0;
-const WALL = 1;
-const MUD = 2;
-const MUD_COST = 5;
 
 const COLORS = {
   bg: '#ffffff',
@@ -41,58 +36,69 @@ interface Side {
   run?: SearchRun;
 }
 
-export function mountGridDemo(root: HTMLElement): void {
+export interface GridDemoApi {
+  /** Loads a grid (e.g. a worst-case scenario from the analysis tab) and runs it from the start */
+  load(spec: GridSpec, heur: GridHeurKey, tieBreak: boolean): void;
+}
+
+export function mountGridDemo(root: HTMLElement): GridDemoApi {
   const cells = new Uint8Array(ROWS * COLS);
   let start = idx(12, 8);
   let goal = idx(12, 40);
   let brush = WALL;
-  let heurKey = 'manhattan';
+  let heurKey: GridHeurKey = 'manhattan';
   let tieBreak = true;
 
   const manhattan = (v: number) => Math.abs(rowOf(v) - rowOf(goal)) + Math.abs(colOf(v) - colOf(goal));
-  const heuristics: Record<string, { label: string; h: Heuristic }> = {
-    manhattan: { label: 'Manhattan distance (good)', h: manhattan },
-    euclid: { label: 'Euclidean distance (looser)', h: (v) => Math.hypot(rowOf(v) - rowOf(goal), colOf(v) - colOf(goal)) },
-    zero: { label: 'h = 0 (same as Dijkstra)', h: () => 0 },
-    over: { label: '3 × Manhattan (overestimates)', h: (v) => 3 * manhattan(v) },
+  const heuristics: Record<GridHeurKey, { label: string; h: Heuristic }> = {
+    manhattan: { label: t('맨해튼 거리 (좋음)', 'Manhattan distance (good)'), h: manhattan },
+    euclid: { label: t('유클리드 거리 (조금 느슨함)', 'Euclidean distance (looser)'), h: (v) => Math.hypot(rowOf(v) - rowOf(goal), colOf(v) - colOf(goal)) },
+    weak: { label: t('0.3 × 맨해튼 (약함)', '0.3 × Manhattan (weak)'), h: (v) => 0.3 * manhattan(v) },
+    zero: { label: t('h = 0 (Dijkstra와 같음)', 'h = 0 (same as Dijkstra)'), h: () => 0 },
+    over: { label: t('3 × 맨해튼 (과대평가)', '3 × Manhattan (overestimates)'), h: (v) => 3 * manhattan(v) },
   };
 
   root.innerHTML = `
     <div class="intro">
-      <p>Moves are up/down/left/right only, and entering a cell costs 1 (mud costs ${MUD_COST}). When every cost is 1, Dijkstra spreads out
-      in a diamond just like BFS, while A* uses its heuristic to head toward the goal.</p>
-      <p class="hint">Drag over empty cells to paint with the brush; drag over cells of the same type to erase them. Drag <b>S</b> and <b>G</b> to move them.
-      After a search has run to the end, any edit to the grid re-runs it instantly.</p>
+      <p>${t(
+        `상하좌우로만 움직이고 칸에 들어갈 때 비용 1(진흙은 ${MUD_COST})입니다. 비용이 모두 1이면 Dijkstra는 BFS처럼 마름모꼴로 퍼지고, A*는 휴리스틱을 따라 도착점 쪽으로 향합니다.`,
+        `Moves are up/down/left/right only, and entering a cell costs 1 (mud costs ${MUD_COST}). When every cost is 1, Dijkstra spreads out in a diamond just like BFS, while A* uses its heuristic to head toward the goal.`,
+      )}</p>
+      <p class="hint">${t(
+        '빈 칸 위로 드래그하면 브러시로 칠하고, 같은 종류 칸 위로 드래그하면 지웁니다. <b>S</b>와 <b>G</b>는 드래그로 옮깁니다. 탐색을 끝까지 실행한 뒤에는 격자를 고치면 바로 다시 실행됩니다. ④ 분석 탭의 최악 사례도 ▶ 버튼으로 여기서 불러올 수 있습니다.',
+        'Drag over empty cells to paint with the brush; drag over cells of the same type to erase them. Drag <b>S</b> and <b>G</b> to move them. After a search has run to the end, any edit to the grid re-runs it instantly. The worst cases in the ④ analysis tab can be loaded here with their ▶ button.',
+      )}</p>
     </div>
     <div class="toolbar">
       <div class="player-slot"></div>
     </div>
     <div class="toolbar">
-      <div class="group">Brush
-        <label><input type="radio" name="brush" value="${WALL}" checked> Wall</label>
-        <label><input type="radio" name="brush" value="${MUD}"> Mud (cost ${MUD_COST})</label>
+      <div class="group">${t('브러시', 'Brush')}
+        <label><input type="radio" name="brush" value="${WALL}" checked> ${t('벽', 'Wall')}</label>
+        <label><input type="radio" name="brush" value="${MUD}"> ${t('진흙', 'Mud')} (${t('비용', 'cost')} ${MUD_COST})</label>
       </div>
-      <label class="select">A* heuristic
+      <label class="select">${t('A* 휴리스틱', 'A* heuristic')}
         <select class="heur">${Object.entries(heuristics)
           .map(([k, v]) => `<option value="${k}">${v.label}</option>`)
           .join('')}</select>
       </label>
-      <label class="check"><input type="checkbox" class="tie" checked> A* tie-break: on equal f, prefer smaller h</label>
+      <label class="check"><input type="checkbox" class="tie" checked> ${t('A* tie-break: f가 같으면 h 작은 쪽 먼저', 'A* tie-break: on equal f, prefer smaller h')}</label>
       <div class="group presets">
-        <button data-preset="clear">Clear</button>
-        <button data-preset="random">Random walls</button>
-        <button data-preset="maze">Maze</button>
-        <button data-preset="trap">U-shaped trap</button>
+        <button data-preset="clear">${t('지우기', 'Clear')}</button>
+        <button data-preset="random">${t('랜덤 벽', 'Random walls')}</button>
+        <button data-preset="maze">${t('미로', 'Maze')}</button>
+        <button data-preset="trap">${t('U자 함정', 'U-shaped trap')}</button>
+        <button data-preset="enclosed">${t('도달 불가', 'Unreachable goal')}</button>
       </div>
     </div>
     <div class="legend">
-      <span><i class="dot start"></i>Start S</span>
-      <span><i class="dot goal"></i>Goal G</span>
-      <span><i class="sq wall"></i>Wall</span>
-      <span><i class="sq mud"></i>Mud</span>
-      <span><i class="sq frontier"></i>In queue</span>
-      <span><i class="sq closed"></i>Settled (visited)</span>
-      <span><i class="sq path"></i>Path found</span>
+      <span><i class="dot start"></i>${t('시작 S', 'Start S')}</span>
+      <span><i class="dot goal"></i>${t('도착 G', 'Goal G')}</span>
+      <span><i class="sq wall"></i>${t('벽', 'Wall')}</span>
+      <span><i class="sq mud"></i>${t('진흙', 'Mud')}</span>
+      <span><i class="sq frontier"></i>${t('큐 안 (프론티어)', 'In queue')}</span>
+      <span><i class="sq closed"></i>${t('확정 (방문)', 'Settled (visited)')}</span>
+      <span><i class="sq path"></i>${t('찾은 경로', 'Path found')}</span>
     </div>
     <div class="panels two"></div>`;
 
@@ -109,25 +115,7 @@ export function mountGridDemo(root: HTMLElement): void {
     return { ...s, canvas, ctx: canvas.getContext('2d')!, stats: box.querySelector<HTMLElement>('.stats')! };
   });
 
-  /** Converts the grid into a general graph (adjacency list). The cost of entering a cell becomes the edge weight. */
-  const buildGraph = (): Graph => {
-    const adj: Edge[][] = Array.from({ length: ROWS * COLS }, () => []);
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const u = idx(r, c);
-        if (cells[u] === WALL) continue;
-        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-          const nr = r + dr;
-          const nc = c + dc;
-          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
-          const v = idx(nr, nc);
-          if (cells[v] === WALL) continue;
-          adj[u].push({ to: v, w: cells[v] === MUD ? MUD_COST : 1 });
-        }
-      }
-    }
-    return { n: ROWS * COLS, adj };
-  };
+  const buildGraph = (): Graph => gridToGraph({ rows: ROWS, cols: COLS, cells, start, goal });
 
   // ---------- Drawing ----------
   const draw = (side: Side) => {
@@ -190,14 +178,17 @@ export function mountGridDemo(root: HTMLElement): void {
 
   const renderStats = (side: Side) => {
     const r = side.run!;
-    let status = 'Searching…';
-    if (r.finished) status = r.found ? 'Done' : 'No path';
+    let status = t('탐색 중…', 'Searching…');
+    if (r.finished) status = r.found ? t('완료', 'Done') : t('경로 없음', 'No path');
     const open = cells.reduce((acc, c) => acc + (c === WALL ? 0 : 1), 0);
+    const st = r.pqStats;
     side.stats.innerHTML = `
-      <div><span>Cells settled</span><b>${r.visitedCount}</b> / ${open}</div>
-      <div><span>Queue pushes</span><b>${r.pushCount}</b></div>
-      <div><span>Path cost</span>${r.found ? `<b>${r.cost}</b> (${r.path.length - 1} moves)` : '—'}</div>
-      <div><span>Status</span>${status}</div>`;
+      <div><span>${t('확정한 칸', 'Cells settled')}</span><b>${num(r.visitedCount)}</b> / ${num(open)}</div>
+      <div><span>${t('큐 삽입', 'Queue pushes')}</span><b>${num(r.pushCount)}</b></div>
+      <div><span>${t('키 비교', 'Key comparisons')}</span><b>${num(st.comps)}</b></div>
+      <div><span>${t('stale / 최대 큐', 'stale / max queue')}</span><b>${num(r.staleCount)}</b> / ${num(st.maxSize)}</div>
+      <div><span>${t('경로 비용', 'Path cost')}</span>${r.found ? `<b>${r.cost}</b> (${r.path.length - 1} ${t('칸 이동', 'moves')})` : '—'}</div>
+      <div><span>${t('상태', 'Status')}</span>${status}</div>`;
   };
 
   // ---------- Playback ----------
@@ -311,11 +302,13 @@ export function mountGridDemo(root: HTMLElement): void {
   root.querySelectorAll<HTMLInputElement>('input[name="brush"]').forEach((el) => {
     el.onchange = () => (brush = Number(el.value));
   });
-  root.querySelector<HTMLSelectElement>('select.heur')!.onchange = (e) => {
-    heurKey = (e.target as HTMLSelectElement).value;
+  const heurSel = root.querySelector<HTMLSelectElement>('select.heur')!;
+  const tieBox = root.querySelector<HTMLInputElement>('input.tie')!;
+  heurSel.onchange = (e) => {
+    heurKey = (e.target as HTMLSelectElement).value as GridHeurKey;
     onEdit();
   };
-  root.querySelector<HTMLInputElement>('input.tie')!.onchange = (e) => {
+  tieBox.onchange = (e) => {
     tieBreak = (e.target as HTMLInputElement).checked;
     onEdit();
   };
@@ -327,50 +320,18 @@ export function mountGridDemo(root: HTMLElement): void {
       for (let i = 0; i < cells.length; i++) cells[i] = Math.random() < 0.3 ? WALL : EMPTY;
     },
     maze: () => {
-      // Recursive-backtracker maze: odd coordinates are rooms, the cells between them are walls
-      cells.fill(WALL);
-      const stack: [number, number][] = [[1, 1]];
-      cells[idx(1, 1)] = EMPTY;
-      while (stack.length) {
-        const [r, c] = stack[stack.length - 1];
-        const next = [[-2, 0], [2, 0], [0, -2], [0, 2]]
-          .map(([dr, dc]) => [r + dr, c + dc] as [number, number])
-          .filter(([nr, nc]) => nr > 0 && nr < ROWS - 1 && nc > 0 && nc < COLS - 1 && cells[idx(nr, nc)] === WALL);
-        if (next.length === 0) {
-          stack.pop();
-          continue;
-        }
-        const [nr, nc] = next[Math.floor(Math.random() * next.length)];
-        cells[idx((r + nr) / 2, (c + nc) / 2)] = EMPTY;
-        cells[idx(nr, nc)] = EMPTY;
-        stack.push([nr, nc]);
-      }
-      // Knock out some walls to create loops (multiple routes) → the choice of path actually matters
-      for (let r = 1; r < ROWS - 1; r++) {
-        for (let c = 1; c < COLS - 1; c++) {
-          const i = idx(r, c);
-          if (cells[i] !== WALL || Math.random() > 0.1) continue;
-          const horiz = cells[idx(r, c - 1)] !== WALL && cells[idx(r, c + 1)] !== WALL;
-          const vert = cells[idx(r - 1, c)] !== WALL && cells[idx(r + 1, c)] !== WALL;
-          if (horiz || vert) cells[i] = EMPTY;
-        }
-      }
-      // Snap start/goal to the nearest room cell
-      const snap = (v: number) => idx(Math.min(rowOf(v) | 1, ROWS - 2), Math.min(colOf(v) | 1, COLS - 2));
-      start = snap(start);
-      goal = snap(goal);
+      const spec = { rows: ROWS, cols: COLS, cells, start, goal };
+      maze(spec, Math.random);
+      start = spec.start;
+      goal = spec.goal;
     },
     trap: () => {
-      // A U-shaped wall around the start, closed on the goal side: the heuristic lures A* into a dead end
-      cells.fill(EMPTY);
-      start = idx(12, 12);
-      goal = idx(12, 40);
-      for (let r = 4; r <= 20; r++) cells[idx(r, 20)] = WALL;
-      for (let c = 8; c <= 20; c++) {
-        cells[idx(4, c)] = WALL;
-        cells[idx(20, c)] = WALL;
-      }
+      const spec = { rows: ROWS, cols: COLS, cells, start, goal };
+      uTrap(spec);
+      start = spec.start;
+      goal = spec.goal;
     },
+    enclosed: () => enclosedGoal({ rows: ROWS, cols: COLS, cells, start, goal }),
   };
   root.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach((btn) => {
     btn.onclick = () => {
@@ -382,4 +343,17 @@ export function mountGridDemo(root: HTMLElement): void {
   });
 
   player.reset();
+
+  return {
+    load(spec, heur, tie) {
+      cells.set(spec.cells);
+      start = spec.start;
+      goal = spec.goal;
+      heurKey = heur;
+      tieBreak = tie;
+      heurSel.value = heur;
+      tieBox.checked = tie;
+      player.reset();
+    },
+  };
 }

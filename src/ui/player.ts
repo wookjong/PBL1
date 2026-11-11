@@ -1,4 +1,5 @@
 /** Play / pause / step / run to end / reset controls, plus a speed slider */
+import { t } from '../i18n';
 
 export interface PlayerHooks {
   reset(): void; // put the search back in its initial state
@@ -29,10 +30,10 @@ export class Player {
     this.el.className = 'player';
     this.el.innerHTML = `
       <button data-act="play" class="primary">▶ Play</button>
-      <button data-act="step">Step</button>
-      <button data-act="end">Run to End</button>
-      <button data-act="reset">Reset</button>
-      <label class="speed">Speed
+      <button data-act="step">${t('한 단계', 'Step')}</button>
+      <button data-act="end">${t('끝까지', 'Run to End')}</button>
+      <button data-act="reset">${t('처음으로', 'Reset')}</button>
+      <label class="speed">${t('속도', 'Speed')}
         <input type="range" min="0" max="100" value="${Math.round((Math.log10(this.speed) / SPEED_MAX_EXP) * 100)}">
         <span></span>
       </label>`;
@@ -88,6 +89,20 @@ export class Player {
     this.hooks.render();
   }
 
+  /** Steps until `done()` is true or the search ends, then renders once */
+  stepUntil(done: () => boolean): void {
+    this.pause();
+    if (this.finished) return;
+    for (;;) {
+      if (!this.hooks.step()) {
+        this.markFinished();
+        break;
+      }
+      if (done()) break;
+    }
+    this.hooks.render();
+  }
+
   finishAll(): void {
     this.pause();
     if (!this.finished) {
@@ -118,7 +133,7 @@ export class Player {
   };
 
   private updateUI(): void {
-    this.playBtn.textContent = this.playing ? '⏸ Pause' : this.finished ? '↻ Replay' : '▶ Play';
-    this.speedLabel.textContent = `${this.speed} steps/s`;
+    this.playBtn.textContent = this.playing ? t('⏸ 일시정지', '⏸ Pause') : this.finished ? t('↻ 다시', '↻ Replay') : t('▶ 재생', '▶ Play');
+    this.speedLabel.textContent = t(`초당 ${this.speed}단계`, `${this.speed} steps/s`);
   }
 }

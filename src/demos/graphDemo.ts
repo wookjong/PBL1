@@ -5,6 +5,7 @@ import { SearchRun } from '../algo/run';
 import { dist, type GeoGraph } from '../graphs/generate';
 import { fmt, GraphView, type GraphViewOptions } from '../ui/graphView';
 import { Player } from '../ui/player';
+import { num, t } from '../i18n';
 
 export interface GraphDemoConfig {
   description: string; // HTML
@@ -20,6 +21,7 @@ interface Panel {
   view: GraphView;
   stats: HTMLElement;
   run?: SearchRun;
+  order?: number[]; // settle order so far
 }
 
 /**
@@ -30,26 +32,31 @@ interface Panel {
 export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
   const g = cfg.graph;
   const s = g.start;
-  const t = g.goal;
+  const goal = g.goal;
 
   // Straight-line heuristic: every edge costs ≥ length/unit, so it never exceeds the true cost (admissible)
-  const hGood: Heuristic = (v) => dist(g.pos[v], g.pos[t]) / g.unit;
+  const hGood: Heuristic = (v) => dist(g.pos[v], g.pos[goal]) / g.unit;
   const badHeuristics: Record<string, { label: string; desc: string; h: Heuristic }> = {
+    zero: {
+      label: t('h = 0 (Dijkstra와 같아야 함)', 'h = 0 (should equal Dijkstra)'),
+      desc: t('h = 0 — f = g + 0 = g라서 키가 Dijkstra와 똑같음 → 확정 순서·개수까지 같음', 'h = 0 — f = g + 0 = g, so the keys are exactly Dijkstra’s → same settle order and count'),
+      h: () => 0,
+    },
     weak: {
-      label: 'Weak heuristic (0.3 × straight-line)',
-      desc: 'h = 0.3 × straight-line distance — far below the true cost → still optimal, but explores almost as widely as Dijkstra',
+      label: t('약한 휴리스틱 (0.3 × 직선거리)', 'Weak heuristic (0.3 × straight-line)'),
+      desc: t('h = 0.3 × 직선거리 — 실제 비용보다 훨씬 작음 → 여전히 최적이지만 Dijkstra만큼 넓게 탐색', 'h = 0.3 × straight-line distance — far below the true cost → still optimal, but explores almost as widely as Dijkstra'),
       h: (v) => 0.3 * hGood(v),
     },
     over: {
-      label: 'Overestimating heuristic (3 × straight-line)',
-      desc: 'h = 3 × straight-line distance — exceeds the true cost (not admissible) → fast, but the path is not guaranteed to be shortest',
+      label: t('과대평가 휴리스틱 (3 × 직선거리)', 'Overestimating heuristic (3 × straight-line)'),
+      desc: t('h = 3 × 직선거리 — 실제 비용을 넘음(admissible 아님) → 빠르지만 최단 경로 보장 없음', 'h = 3 × straight-line distance — exceeds the true cost (not admissible) → fast, but the path is not guaranteed to be shortest'),
       h: (v) => 3 * hGood(v),
     },
   };
   let badKey = 'weak';
 
   // Optimal cost (reference for checking each result)
-  const ref = new SearchRun(g.n, dijkstra(g, s, t));
+  const ref = new SearchRun(g.n, dijkstra(g, s, goal));
   ref.runToEnd();
   const optimal = ref.cost;
 
@@ -57,28 +64,28 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
     <div class="intro">${cfg.description}</div>
     <div class="toolbar">
       <div class="player-slot"></div>
-      <label class="select">Bad heuristic
+      <label class="select">${t('나쁜 휴리스틱', 'Bad heuristic')}
         <select>${Object.entries(badHeuristics)
-          .map(([k, b]) => `<option value="${k}">${b.label}</option>`)
+          .map(([k, b]) => `<option value="${k}"${k === badKey ? ' selected' : ''}>${b.label}</option>`)
           .join('')}</select>
       </label>
     </div>
     <div class="legend">
-      <span><i class="dot start"></i>Start</span>
-      <span><i class="dot goal"></i>Goal</span>
-      <span><i class="dot frontier"></i>In queue (frontier)</span>
-      <span><i class="dot closed"></i>Settled (visited)</span>
-      <span><i class="dot current"></i>Just settled</span>
-      <span><i class="bar path"></i>Path found</span>
-      <span><i class="bar slow"></i>Congested (costly edge)</span>
+      <span><i class="dot start"></i>${t('시작', 'Start')}</span>
+      <span><i class="dot goal"></i>${t('도착', 'Goal')}</span>
+      <span><i class="dot frontier"></i>${t('큐 안 (프론티어)', 'In queue (frontier)')}</span>
+      <span><i class="dot closed"></i>${t('확정 (방문)', 'Settled (visited)')}</span>
+      <span><i class="dot current"></i>${t('방금 확정', 'Just settled')}</span>
+      <span><i class="bar path"></i>${t('찾은 경로', 'Path found')}</span>
+      <span><i class="bar slow"></i>${t('정체 (비싼 간선)', 'Congested (costly edge)')}</span>
     </div>
     <div class="panels"></div>`;
 
   const panelsEl = root.querySelector<HTMLElement>('.panels')!;
   const panels: Panel[] = [
-    { title: 'Dijkstra', subtitle: () => 'h = 0 — settles nodes in order of distance from the start', make: () => dijkstra(g, s, t) },
-    { title: 'A* · Bad heuristic', subtitle: () => badHeuristics[badKey].desc, make: () => astar(g, s, t, badHeuristics[badKey].h) },
-    { title: 'A* · Good heuristic', subtitle: () => 'h = straight-line distance — the tightest estimate that never exceeds the true cost', make: () => astar(g, s, t, hGood) },
+    { title: 'Dijkstra', subtitle: () => t('h = 0 — 시작점에서 가까운 순서로 확정', 'h = 0 — settles nodes in order of distance from the start'), make: () => dijkstra(g, s, goal) },
+    { title: t('A* · 나쁜 휴리스틱', 'A* · Bad heuristic'), subtitle: () => badHeuristics[badKey].desc, make: () => astar(g, s, goal, badHeuristics[badKey].h) },
+    { title: t('A* · 좋은 휴리스틱', 'A* · Good heuristic'), subtitle: () => t('h = 직선거리 — 실제 비용을 넘지 않는 가장 정확한 추정', 'h = straight-line distance — the tightest estimate that never exceeds the true cost'), make: () => astar(g, s, goal, hGood) },
   ].map((p) => {
     const box = document.createElement('div');
     box.className = 'panel';
@@ -93,33 +100,57 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
     panelsEl.querySelectorAll<HTMLElement>('.panel .sub').forEach((el, i) => (el.textContent = panels[i].subtitle()));
   };
 
+  /** For A* with h = 0: is its settle order identical to Dijkstra's so far? */
+  const sameAsDijkstra = (p: Panel): string => {
+    const a = p.order!;
+    const d = panels[0].order!;
+    const k = Math.min(a.length, d.length);
+    let i = 0;
+    while (i < k && a[i] === d[i]) i++;
+    const ok = i === k && (!p.run!.finished || a.length === d.length);
+    return `<div class="full"><span>${t('Dijkstra와 확정 순서', "Settle order vs Dijkstra")}</span>${
+      ok ? `<b class="ok">✓ ${t(`${k}개 모두 같음`, `all ${k} identical`)}</b>` : `<b class="bad">✗ ${t(`${i + 1}번째부터 다름`, `differs from #${i + 1}`)}</b>`
+    }</div>`;
+  };
+
   const renderStats = (p: Panel) => {
     const r = p.run!;
-    let status = 'Searching…';
+    let status = t('탐색 중…', 'Searching…');
     let cost = '—';
     if (r.finished && r.found) {
-      status = 'Done';
+      status = t('완료', 'Done');
       const diff = r.cost - optimal;
       cost =
         diff < 1e-9
-          ? `${fmt(r.cost)} <b class="ok">✓ optimal</b>`
-          : `${fmt(r.cost)} <b class="bad">✗ ${fmt(diff)} longer than optimal (${fmt(optimal)})</b>`;
-    } else if (r.finished) status = 'No path';
+          ? `${fmt(r.cost)} <b class="ok">✓ ${t('최적', 'optimal')}</b>`
+          : `${fmt(r.cost)} <b class="bad">✗ ${t(`최적(${fmt(optimal)})보다 ${fmt(diff)} 김`, `${fmt(diff)} longer than optimal (${fmt(optimal)})`)}</b>`;
+    } else if (r.finished) status = t('경로 없음', 'No path');
+    const st = r.pqStats;
     p.stats.innerHTML = `
-      <div><span>Nodes settled</span><b>${r.visitedCount}</b> / ${g.n} (${Math.round((r.visitedCount / g.n) * 100)}%)</div>
-      <div><span>Queue pushes</span><b>${r.pushCount}</b></div>
-      <div><span>Path cost</span>${cost}</div>
-      <div><span>Status</span>${status}</div>`;
+      <div><span>${t('확정 노드', 'Nodes settled')}</span><b>${r.visitedCount}</b> / ${g.n} (${Math.round((r.visitedCount / g.n) * 100)}%)</div>
+      <div><span>${t('큐 삽입', 'Queue pushes')}</span><b>${r.pushCount}</b></div>
+      <div><span>${t('키 비교', 'Key comparisons')}</span><b>${num(st.comps)}</b></div>
+      <div><span>stale</span><b>${r.staleCount}</b></div>
+      <div><span>${t('경로 비용', 'Path cost')}</span>${cost}</div>
+      <div><span>${t('상태', 'Status')}</span>${status}</div>${p === panels[1] && badKey === 'zero' ? sameAsDijkstra(p) : ''}`;
   };
 
   const player = new Player(
     {
       reset: () => {
-        for (const p of panels) p.run = new SearchRun(g.n, p.make());
+        for (const p of panels) {
+          p.run = new SearchRun(g.n, p.make());
+          p.order = [];
+        }
         renderSubtitles();
       },
       step: () => {
-        for (const p of panels) if (!p.run!.finished) p.run!.expand();
+        for (const p of panels) {
+          if (p.run!.finished) continue;
+          const before = p.run!.visitedCount;
+          p.run!.expand();
+          if (p.run!.visitedCount > before) p.order!.push(p.run!.current);
+        }
         return panels.some((p) => !p.run!.finished);
       },
       render: () => {

@@ -28,6 +28,8 @@ export class GraphView {
   private nodeClass: string[] = [];
   private valueText: string[] = [];
   private pathEdgeKeys: string[] = [];
+  private activeEdge: SVGLineElement | null = null;
+  private focusRing: SVGCircleElement;
 
   constructor(
     private g: GeoGraph,
@@ -42,6 +44,7 @@ export class GraphView {
     const weightLayer = el('g', { class: 'weights' }, svg);
     const nodeLayer = el('g', {}, svg);
     const labelLayer = el('g', { class: 'labels' }, svg);
+    this.focusRing = el('circle', { r: opts.nodeR + Math.max(3, opts.nodeR * 0.35), class: 'focus-ring', visibility: 'hidden' }, svg);
 
     for (const { u, v, w, slow } of g.edges) {
       const a = g.pos[u];
@@ -72,6 +75,25 @@ export class GraphView {
 
   private key(u: number, v: number) {
     return u < v ? `${u}-${v}` : `${v}-${u}`;
+  }
+
+  /** Highlights the edge (u, v) currently being relaxed; pass -1 to clear. `kind` is a CSS class (improve / noimprove / closed). */
+  setActiveEdge(u: number, v: number, kind = ''): void {
+    this.activeEdge?.classList.remove('active', 'improve', 'noimprove', 'closed');
+    this.activeEdge = u < 0 ? null : (this.edgeEls.get(this.key(u, v)) ?? null);
+    if (this.activeEdge) this.activeEdge.classList.add('active', ...(kind ? [kind] : []));
+  }
+
+  /** Draws a ring around the node the current operation is about; pass -1 to hide it */
+  setFocus(v: number): void {
+    if (v < 0) {
+      this.focusRing.setAttribute('visibility', 'hidden');
+      return;
+    }
+    const p = this.g.pos[v];
+    this.focusRing.setAttribute('cx', String(p.x));
+    this.focusRing.setAttribute('cy', String(p.y));
+    this.focusRing.setAttribute('visibility', 'visible');
   }
 
   render(run: SearchRun): void {

@@ -155,3 +155,34 @@ export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
 
   return { n, adj, pos, edges, width: o.width, height: o.height, unit: o.unit, start, goal, labels };
 }
+
+/**
+ * A hand-made 5-node graph for following the algorithm by hand.
+ * Dijkstra on it uses every queue operation once: insert, decreaseKey (C: 25 → 22), a relax that changes nothing (C → D),
+ * and — with the lazy heap — one stale entry (the old C:25) popped and discarded.
+ * Coordinates are chosen so the straight-line heuristic (distance / 20) never exceeds the true cost.
+ */
+export function tinyGraph(): GeoGraph {
+  const pos: Point[] = [
+    { x: 60, y: 200 }, // A
+    { x: 220, y: 90 }, // B
+    { x: 220, y: 310 }, // C
+    { x: 400, y: 200 }, // D
+    { x: 560, y: 200 }, // E
+  ];
+  const list: [number, number, number, boolean][] = [
+    [0, 1, 10, false],
+    [0, 2, 25, true], // much more expensive than its length → "congested"
+    [1, 2, 12, false],
+    [1, 3, 13, false],
+    [2, 3, 11, false],
+    [3, 4, 8, false],
+  ];
+  const adj: Edge[][] = pos.map(() => []);
+  const edges = list.map(([u, v, w, slow]) => {
+    adj[u].push({ to: v, w });
+    adj[v].push({ to: u, w });
+    return { u, v, w, slow };
+  });
+  return { n: 5, adj, pos, edges, width: 620, height: 380, unit: 20, start: 0, goal: 4, labels: ['A', 'B', 'C', 'D', 'E'] };
+}
