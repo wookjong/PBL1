@@ -4,7 +4,7 @@ import type { PQEntry, PQKind } from '../algo/heap';
 import type { Heuristic, Step } from '../algo/graph';
 import { NodeState, SearchRun } from '../algo/run';
 import { bestFirstSearch } from '../algo/search';
-import { dist, type GeoGraph } from '../graphs/generate';
+import { geoHeuristic, type GeoGraph } from '../graphs/generate';
 import { num, t } from '../i18n';
 import { CodeView } from '../ui/codeView';
 import { fmt, GraphView } from '../ui/graphView';
@@ -571,7 +571,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
     {
       reset: () => {
         const g = level.graph;
-        const hGood: Heuristic = (v) => dist(g.pos[v], g.pos[g.goal]) / g.unit;
+        const hGood: Heuristic = geoHeuristic(g);
         h = algo === 'astar' ? hGood : () => 0;
         run = new SearchRun(g.n, makeSearch(h, tieBreak && algo !== 'dijkstra'));
         log.length = 0;
@@ -586,7 +586,11 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
           ref = { order: o, settled: d.visitedCount, comps: d.pqStats.comps, cost: d.cost, ops: d.opCount };
         }
         $('.algo-name').textContent =
-          algo === 'astar' ? t('A* · h = 직선거리', 'A* · h = straight-line distance') : algo === 'astar0' ? t('A* · h = 0 (키 f = g)', 'A* · h = 0 (key f = g)') : t('Dijkstra · 키 = g', 'Dijkstra · key = g');
+          algo === 'astar'
+            ? g.hScale === 1
+              ? t('A* · h = 직선거리', 'A* · h = straight-line distance')
+              : t(`A* · h = ${g.hScale.toFixed(3)} × 직선거리 (비용이 거리와 무관해 줄임)`, `A* · h = ${g.hScale.toFixed(3)} × straight-line (costs are unrelated to length, so scaled down)`)
+            : algo === 'astar0' ? t('A* · h = 0 (키 f = g)', 'A* · h = 0 (key f = g)') : t('Dijkstra · 키 = g', 'Dijkstra · key = g');
         $('.pq-name').textContent = PQ_LABEL[kind]();
         $('.pq-note').textContent = PQ_NOTE[kind]();
       },

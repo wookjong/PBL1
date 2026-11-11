@@ -21,6 +21,15 @@ Upload the `dist/` folder as-is to GitHub Pages or any static host. The UI is in
 | ③ Grid | Editable 4-directional grid (walls, mud, presets incl. U-trap and unreachable goal) |
 | ④ Performance analysis | Measured by running the same code without drawing: scaling from 16 to 1,000 nodes, the optimization ladder, and A* worst cases (each row can be opened in tab ③) |
 
+### Edge-cost option (tabs ① and ②)
+
+Above both tabs you can pick how edge costs are made (remembered in the browser, like the language):
+
+- **Proportional to length** (default): cost = ⌈length ÷ unit⌉, congested edges 2–4×. Every cost is at least the straight-line length, so plain straight-line h is admissible.
+- **Unrelated to length (random)**: same nodes and edges, but each cost is a random integer in 1..maxW (maxW = 2 × average length ÷ unit). Plain straight-line h can now overestimate, so A* uses h = c × straight-line, where c is the smallest cost ÷ length over all edges (`hScale` in `generate.ts`). That h is admissible and consistent, but c is small (0.142 on the 16-node graph, 0.019 on the 450-node graph), so A* gains almost nothing over Dijkstra. The comparison view also offers *plain straight-line (not scaled)* as the middle heuristic: on the 450-node graph it settles only 32 nodes but returns a path of 573 instead of 434.
+
+The 5-node example keeps its hand-made costs, and tab ④ always measures the length-based graph.
+
 ## How the meeting feedback is covered
 
 | Feedback | Where |
@@ -96,7 +105,7 @@ and the rendering side draws purely from those events. `SearchRun.expand()` sett
 
 ## Things you might want to change
 
-- Graph shape: the `makeGeoGraph({...})` options in `src/main.ts` (`seed`, `n`, `k`, `slowProb`, ...)
+- Graph shape: the `makeGeoGraph({...})` options in `src/main.ts` (`seed`, `n`, `k`, `slowProb`, `weights`, ...)
 - Bad heuristic variants: `badHeuristics` in `src/demos/graphDemo.ts`
 - Grid size and mud cost: constants at the top of `src/graphs/grids.ts` (`ROWS` and `COLS` must be odd)
 - Worst-case scenarios: `cases` in `src/demos/analysisDemo.ts`

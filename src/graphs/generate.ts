@@ -11,12 +11,23 @@ export interface GeoGraph extends Graph {
   edges: { u: number; v: number; w: number; slow: boolean }[];
   width: number;
   height: number;
-  /** Cost 1 per `unit` of coordinate distance. Every edge costs at least (straight-line length / unit). */
+  /** Cost 1 per `unit` of coordinate distance (in 'distance' mode). */
   unit: number;
+  /** How edge costs were made: proportional to length, or random and unrelated to length */
+  weights: WeightMode;
+  /**
+   * Largest c such that every edge costs at least c × (length / unit).
+   * h(v) = c × straight-line distance / unit is then admissible and consistent. 1 in 'distance' mode.
+   */
+  hScale: number;
+  /** In 'random' mode: costs are integers in 1..maxW */
+  maxW: number;
   start: number;
   goal: number;
   labels: string[];
 }
+
+export type WeightMode = 'distance' | 'random';
 
 export interface GeoGraphOptions {
   n: number; // desired number of nodes (may end up smaller if space runs out)
@@ -31,6 +42,7 @@ export interface GeoGraphOptions {
   slowMin: number; // cost multiplier range for congested edges
   slowMax: number;
   seed: number; // same seed → always the same graph
+  weights?: WeightMode; // 'distance' (default): cost ∝ length · 'random': cost unrelated to length
 }
 
 /** Seeded random number generator (mulberry32) */
@@ -131,16 +143,31 @@ export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
     add(u, v);
   }
 
-  // 4. Weights: ceil(straight-line length / unit × multiplier). The multiplier is ≥ 1, so the straight-line heuristic is always admissible.
+  // 4. Weights. The nodes and edges above are the same in both modes; only the costs differ.
+  //  'distance': ceil(length / unit × multiplier), multiplier ≥ 1 → the plain straight-line heuristic is admissible
+  //  'random'  : uniform integer in 1..maxW, unrelated to length (maxW = 2 × average length / unit, so costs are on a similar scale)
+  const mode = o.weights ?? 'distance';
+  const meanLen = pairs.reduce((s, [u, v]) => s + dist(pos[u], pos[v]), 0) / Math.max(1, pairs.length) / o.unit;
+  const maxW = Math.max(2, Math.round(2 * meanLen));
   const adj: Edge[][] = Array.from({ length: n }, () => []);
+  let hScale = Infinity;
   const edges = pairs.map(([u, v]) => {
-    const slow = rand() < o.slowProb;
-    const factor = slow ? o.slowMin + rand() * (o.slowMax - o.slowMin) : 1;
-    const w = Math.max(1, Math.ceil((dist(pos[u], pos[v]) / o.unit) * factor));
+    const len = dist(pos[u], pos[v]) / o.unit;
+    let w: number;
+    let slow = false;
+    if (mode === 'random') {
+      w = 1 + Math.floor(rand() * maxW);
+    } else {
+      slow = rand() < o.slowProb;
+      const factor = slow ? o.slowMin + rand() * (o.slowMax - o.slowMin) : 1;
+      w = Math.max(1, Math.ceil(len * factor));
+    }
+    hScale = Math.min(hScale, w / len);
     adj[u].push({ to: v, w });
     adj[v].push({ to: u, w });
     return { u, v, w, slow };
   });
+  if (mode === 'distance' || !Number.isFinite(hScale)) hScale = 1; // every w ≥ length / unit already
 
   // 5. Start = leftmost node, goal = rightmost node (preferring ones near the vertical middle)
   const score = (p: Point) => Math.abs(p.y - o.height / 2) * 0.5;
@@ -153,7 +180,13 @@ export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
 
   const labels = pos.map((_, i) => (n <= 26 ? String.fromCharCode(65 + i) : String(i)));
 
-  return { n, adj, pos, edges, width: o.width, height: o.height, unit: o.unit, start, goal, labels };
+  return { n, adj, pos, edges, width: o.width, height: o.height, unit: o.unit, weights: mode, hScale, maxW: mode === 'random' ? maxW : 0, start, goal, labels };
+}
+
+/** Straight-line heuristic for a coordinate graph, scaled so it never overestimates (see `hScale`) */
+export function geoHeuristic(g: GeoGraph, scale = g.hScale): (v: number) => number {
+  const p = g.pos[g.goal];
+  return (v) => (scale * dist(g.pos[v], p)) / g.unit;
 }
 
 /**
@@ -184,5 +217,5 @@ export function tinyGraph(): GeoGraph {
     adj[v].push({ to: u, w });
     return { u, v, w, slow };
   });
-  return { n: 5, adj, pos, edges, width: 620, height: 380, unit: 20, start: 0, goal: 4, labels: ['A', 'B', 'C', 'D', 'E'] };
+  return { n: 5, adj, pos, edges, width: 620, height: 380, unit: 20, weights: 'distance', hScale: 1, maxW: 0, start: 0, goal: 4, labels: ['A', 'B', 'C', 'D', 'E'] };
 }

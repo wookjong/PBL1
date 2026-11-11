@@ -2,7 +2,7 @@ import type { PQKind } from '../algo/heap';
 import type { Graph, Heuristic } from '../algo/graph';
 import { SearchRun } from '../algo/run';
 import { bestFirstSearch, type SearchOptions } from '../algo/search';
-import { dist, makeGeoGraph, mulberry32, type GeoGraph } from '../graphs/generate';
+import { geoHeuristic, makeGeoGraph, mulberry32, type GeoGraph } from '../graphs/generate';
 import {
   cloneGrid,
   diagonalGrid,
@@ -67,7 +67,7 @@ function measure(G: Graph, s: number, goal: number, opts: SearchOptions, reps = 
   };
 }
 
-const geoH = (g: GeoGraph): Heuristic => (v) => dist(g.pos[v], g.pos[g.goal]) / g.unit;
+const geoH = (g: GeoGraph): Heuristic => geoHeuristic(g);
 
 /** Same density as the large graph (≈1333 px² per node), only the area changes */
 function geoOfSize(n: number): GeoGraph {

@@ -2,7 +2,7 @@ import { astar } from '../algo/astar';
 import { dijkstra } from '../algo/dijkstra';
 import type { Heuristic, SearchGenerator } from '../algo/graph';
 import { SearchRun } from '../algo/run';
-import { dist, type GeoGraph } from '../graphs/generate';
+import { geoHeuristic, type GeoGraph } from '../graphs/generate';
 import { fmt, GraphView, type GraphViewOptions } from '../ui/graphView';
 import { Player } from '../ui/player';
 import { num, t } from '../i18n';
@@ -34,8 +34,11 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
   const s = g.start;
   const goal = g.goal;
 
-  // Straight-line heuristic: every edge costs ≥ length/unit, so it never exceeds the true cost (admissible)
-  const hGood: Heuristic = (v) => dist(g.pos[v], g.pos[goal]) / g.unit;
+  // Straight-line heuristic, scaled by hScale so that every edge costs ≥ hScale × length / unit → never exceeds the true cost (admissible).
+  // With distance-based costs hScale = 1; with random costs it is the smallest cost/length ratio over all edges.
+  const random = g.weights === 'random';
+  const c = g.hScale.toFixed(3);
+  const hGood: Heuristic = geoHeuristic(g);
   const badHeuristics: Record<string, { label: string; desc: string; h: Heuristic }> = {
     zero: {
       label: t('h = 0 (Dijkstra와 같아야 함)', 'h = 0 (should equal Dijkstra)'),
@@ -47,6 +50,18 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
       desc: t('h = 0.3 × 직선거리 — 실제 비용보다 훨씬 작음 → 여전히 최적이지만 Dijkstra만큼 넓게 탐색', 'h = 0.3 × straight-line distance — far below the true cost → still optimal, but explores almost as widely as Dijkstra'),
       h: (v) => 0.3 * hGood(v),
     },
+    ...(random
+      ? {
+          raw: {
+            label: t('직선거리 그대로 (축소 없이)', 'Plain straight-line (not scaled)'),
+            desc: t(
+              `h = 직선거리 — 비용이 거리와 무관하면 실제 비용을 넘을 수 있음(admissible 아님) → 최단 경로 보장 없음`,
+              `h = straight-line distance — with costs unrelated to length it can exceed the true cost (not admissible) → no shortest-path guarantee`,
+            ),
+            h: geoHeuristic(g, 1),
+          },
+        }
+      : {}),
     over: {
       label: t('과대평가 휴리스틱 (3 × 직선거리)', 'Overestimating heuristic (3 × straight-line)'),
       desc: t('h = 3 × 직선거리 — 실제 비용을 넘음(admissible 아님) → 빠르지만 최단 경로 보장 없음', 'h = 3 × straight-line distance — exceeds the true cost (not admissible) → fast, but the path is not guaranteed to be shortest'),
@@ -85,7 +100,13 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
   const panels: Panel[] = [
     { title: 'Dijkstra', subtitle: () => t('h = 0 — 시작점에서 가까운 순서로 확정', 'h = 0 — settles nodes in order of distance from the start'), make: () => dijkstra(g, s, goal) },
     { title: t('A* · 나쁜 휴리스틱', 'A* · Bad heuristic'), subtitle: () => badHeuristics[badKey].desc, make: () => astar(g, s, goal, badHeuristics[badKey].h) },
-    { title: t('A* · 좋은 휴리스틱', 'A* · Good heuristic'), subtitle: () => t('h = 직선거리 — 실제 비용을 넘지 않는 가장 정확한 추정', 'h = straight-line distance — the tightest estimate that never exceeds the true cost'), make: () => astar(g, s, goal, hGood) },
+    { title: t('A* · 좋은 휴리스틱', 'A* · Good heuristic'), subtitle: () =>
+        random
+          ? t(
+              `h = ${c} × 직선거리 — 비용이 거리와 무관하므로, 모든 간선에서 '비용 ÷ 길이'의 최솟값 ${c}를 곱해야 실제 비용을 넘지 않음`,
+              `h = ${c} × straight-line — costs are unrelated to length, so h is multiplied by the smallest cost/length ratio over all edges (${c}) to never exceed the true cost`,
+            )
+          : t('h = 직선거리 — 좌표만으로 만들 수 있는, 실제 비용을 넘지 않는 추정', 'h = straight-line distance — an estimate from coordinates alone that never exceeds the true cost'), make: () => astar(g, s, goal, hGood) },
   ].map((p) => {
     const box = document.createElement('div');
     box.className = 'panel';

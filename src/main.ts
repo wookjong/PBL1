@@ -4,11 +4,21 @@ import { mountAnalysisDemo } from './demos/analysisDemo';
 import { mountGraphDemo } from './demos/graphDemo';
 import { mountGridDemo } from './demos/gridDemo';
 import { mountInsideDemo } from './demos/insideDemo';
-import { makeGeoGraph, tinyGraph } from './graphs/generate';
+import { makeGeoGraph, tinyGraph, type GeoGraph, type WeightMode } from './graphs/generate';
 import { lang, setLang, t } from './i18n';
+
+// Edge-cost option for tabs ① and ②: proportional to length (default) or random. Remembered like the language.
+const WEIGHTS_KEY = 'pbl1-weights';
+let weightMode: WeightMode = 'distance';
+try {
+  if (localStorage.getItem(WEIGHTS_KEY) === 'random') weightMode = 'random';
+} catch {
+  /* storage blocked: keep the default */
+}
 
 // ① Small graph: for explanation — shows node names, edge weights and f values
 const smallGraph = makeGeoGraph({
+  weights: weightMode,
   n: 16,
   width: 640,
   height: 400,
@@ -24,7 +34,7 @@ const smallGraph = makeGeoGraph({
 });
 
 // ② Large graph: makes the difference in search area visible at a glance
-const largeGraph = makeGeoGraph({
+const largeOpts = {
   n: 450,
   width: 1000,
   height: 600,
@@ -37,7 +47,10 @@ const largeGraph = makeGeoGraph({
   slowMin: 2,
   slowMax: 4,
   seed: 42,
-});
+};
+const largeGraph = makeGeoGraph({ ...largeOpts, weights: weightMode });
+// ④ always measures the distance-based version, so its numbers do not depend on the option
+const largeGraphForAnalysis = weightMode === 'distance' ? largeGraph : makeGeoGraph(largeOpts);
 
 // ---------- Header: title, tabs, language ----------
 const TABS = [
@@ -64,14 +77,40 @@ const panel = (key: string) => document.getElementById(`tab-${key}`)!;
  * ① and ② each have two modes on the same graph: the operation-level view (code + heap) and the three-way comparison.
  * A mode is mounted the first time it is opened.
  */
-function mountModes(el: HTMLElement, first: 'inside' | 'compare', mount: { inside: (box: HTMLElement) => void; compare: (box: HTMLElement) => void }) {
+function mountModes(el: HTMLElement, graph: GeoGraph, first: 'inside' | 'compare', mount: { inside: (box: HTMLElement) => void; compare: (box: HTMLElement) => void }) {
   el.innerHTML = `
     <div class="seg mode">
       <button data-v="inside">${t('코드·힙 단계 실행', 'Step through code & heap')}</button><button data-v="compare">${t('세 알고리즘 비교', 'Compare all three')}</button>
     </div>
+    <span class="weights-pick">${t('간선 비용', 'Edge costs')}
+      <span class="seg weights">
+        <button data-w="distance" class="${weightMode === 'distance' ? 'on' : ''}">${t('거리에 비례', 'Proportional to length')}</button><button data-w="random" class="${weightMode === 'random' ? 'on' : ''}">${t('거리와 무관 (무작위)', 'Unrelated to length (random)')}</button>
+      </span>
+    </span>
+    <p class="weights-note">${
+      graph.weights === 'random'
+        ? t(
+            `간선 비용이 길이와 상관없이 <b>1~${graph.maxW}</b> 사이 정수로 무작위입니다(노드와 간선 연결은 같고 비용만 다름). 그래서 직선거리 h를 그대로 쓰면 실제 비용보다 클 수 있어, 모든 간선의 <b>비용 ÷ 길이</b> 중 최솟값 <b>c = ${graph.hScale.toFixed(3)}</b>을 곱한 <b>h = c × 직선거리</b>를 씁니다. 이 h는 실제 비용을 넘지 않아 최단 경로가 보장되지만, 작아진 만큼 A*의 이득도 줄어듭니다. (작은 그래프의 Lv1 5개 노드 예제는 손으로 정한 비용이라 바뀌지 않습니다. ④ 탭은 항상 거리 비례 그래프로 측정합니다.)`,
+            `Edge costs are random integers from <b>1 to ${graph.maxW}</b>, unrelated to length (same nodes and edges, only the costs differ). Plain straight-line h could then exceed the true cost, so A* uses <b>h = c × straight-line</b> with <b>c = ${graph.hScale.toFixed(3)}</b>, the smallest <b>cost ÷ length</b> over all edges. This h never overestimates, so the path is still shortest, but the smaller h also shrinks A*'s advantage. (The hand-made 5-node example (Lv1) keeps its costs. Tab ④ always measures the length-based graph.)`,
+          )
+        : t(
+            '간선 비용 = ⌈길이 ÷ unit⌉ (정체 간선은 2~4배). 비용이 길이 이상이라 직선거리 h를 그대로 써도 실제 비용을 넘지 않습니다.',
+            'Edge cost = ⌈length ÷ unit⌉ (congested edges 2–4×). Every cost is at least the length, so plain straight-line h never exceeds the true cost.',
+          )
+    }</p>
     <div class="mode-inside" hidden></div>
     <div class="mode-compare" hidden></div>`;
   const boxes = { inside: el.querySelector<HTMLElement>('.mode-inside')!, compare: el.querySelector<HTMLElement>('.mode-compare')! };
+  el.querySelector('.seg.weights')!.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-w]');
+    if (!b || b.dataset.w === weightMode) return;
+    try {
+      localStorage.setItem(WEIGHTS_KEY, b.dataset.w!);
+    } catch {
+      return; // cannot remember the choice, so a reload would not change anything
+    }
+    location.reload(); // the graphs are built once at start-up, like the language
+  });
   const mounted = new Set<string>();
   let cur = first;
   const set = (m: 'inside' | 'compare') => {
@@ -94,7 +133,7 @@ function mountModes(el: HTMLElement, first: 'inside' | 'compare', mount: { insid
   set(first);
 }
 
-mountModes(panel('small'), 'inside', {
+mountModes(panel('small'), smallGraph, 'inside', {
   inside: (box) =>
     mountInsideDemo(box, {
       levels: [
@@ -118,7 +157,7 @@ mountModes(panel('small'), 'inside', {
     }),
 });
 
-mountModes(panel('large'), 'compare', {
+mountModes(panel('large'), largeGraph, 'compare', {
   inside: (box) =>
     mountInsideDemo(box, {
       levels: [{ key: 'large', label: t(`노드 ${largeGraph.n}개`, `${largeGraph.n} nodes`), graph: largeGraph, nodeR: 4.5, big: true }],
@@ -152,7 +191,7 @@ const show = (key: string) => {
 };
 
 mountAnalysisDemo(panel('analysis'), {
-  largeGraph,
+  largeGraph: largeGraphForAnalysis,
   openInGrid: (spec, heur, tie) => {
     grid.load(spec, heur, tie);
     show('grid');

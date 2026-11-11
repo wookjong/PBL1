@@ -204,7 +204,11 @@ input:focus-visible {
 .eq-banner[hidden] { display: none; }
 .stats .full { grid-column: 1 / -1; }
 
-.seg.mode { margin-bottom: 14px; }
+.seg.mode { margin: 0 16px 10px 0; vertical-align: middle; }
+.weights-pick { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 10px; vertical-align: middle; }
+.seg.weights button { font-size: 13px; padding: 5px 10px; }
+.weights-note { margin: 0 0 14px; font-size: 13px; color: var(--muted); line-height: 1.55; max-width: 1100px; }
+.weights-note b { color: var(--text); }
 .seg.mode button { padding: 7px 14px; font-weight: 600; }
 .next-visit { white-space: nowrap; }
 
