@@ -1,5 +1,7 @@
 # Dijkstra vs A* — Shortest Path Visualizer
 
+**Live: https://wookjong.github.io/PBL1/** — rebuilt and redeployed automatically on every push to `main` (`.github/workflows/deploy.yml`).
+
 ## Running it
 
 All you need is [Node.js](https://nodejs.org) (LTS). TypeScript and Vite are installed into the project by `npm install` below.
