@@ -4,6 +4,7 @@ import { mountAnalysisDemo } from './demos/analysisDemo';
 import { mountGraphDemo } from './demos/graphDemo';
 import { mountGridDemo } from './demos/gridDemo';
 import { mountInsideDemo } from './demos/insideDemo';
+import { mountOverview } from './demos/overviewDemo';
 import { makeGeoGraph, tinyGraph, type GeoGraph, type WeightMode } from './graphs/generate';
 import { lang, setLang, t } from './i18n';
 
@@ -54,6 +55,7 @@ const largeGraphForAnalysis = weightMode === 'distance' ? largeGraph : makeGeoGr
 
 // ---------- Header: title, tabs, language ----------
 const TABS = [
+  { key: 'overview', label: t('⓪ 개요', '⓪ Overview') },
   { key: 'small', label: t('① 작은 그래프', '① Small graph') },
   { key: 'large', label: t('② 큰 그래프', '② Large graph') },
   { key: 'grid', label: t('③ 격자 (직접 편집)', '③ Grid (interactive)') },
@@ -179,6 +181,7 @@ mountModes(panel('large'), largeGraph, 'compare', {
     }),
 });
 
+mountOverview(panel('overview'));
 const grid = mountGridDemo(panel('grid'));
 
 const show = (key: string) => {
