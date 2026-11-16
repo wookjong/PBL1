@@ -110,19 +110,33 @@ export function mountAnalysisDemo(root: HTMLElement, cfg: AnalysisConfig): void 
   const $ = (sel: string) => root.querySelector<HTMLElement>(sel)!;
 
   // ---------- ① Scaling ----------
+  type ScaleRow = { n: number; e: number; d: Measure; a: Measure; arr: Measure };
+  const SIZES = [16, 50, 150, 450, 1000, 3000, 10000];
+  const measureSize = (size: number): ScaleRow => {
+    const g = geoOfSize(size);
+    const h = geoH(g);
+    return {
+      n: g.n,
+      e: edgesOf(g),
+      d: measure(g, g.start, g.goal, { pq: 'lazy' }, 3),
+      a: measure(g, g.start, g.goal, { pq: 'lazy', h }, 3),
+      arr: measure(g, g.start, g.goal, { pq: 'array' }, 3),
+    };
+  };
+  /** One size per tick (the biggest takes a couple of seconds), redrawing as rows arrive so the page stays responsive */
   const runScaling = () => {
-    const sizes = [16, 50, 150, 450, 1000];
-    const rows = sizes.map((n) => {
-      const g = geoOfSize(n);
-      const h = geoH(g);
-      return {
-        n: g.n,
-        e: edgesOf(g),
-        d: measure(g, g.start, g.goal, { pq: 'lazy' }, 3),
-        a: measure(g, g.start, g.goal, { pq: 'lazy', h }, 3),
-        arr: measure(g, g.start, g.goal, { pq: 'array' }, 3),
-      };
-    });
+    const rows: ScaleRow[] = [];
+    const next = () => {
+      rows.push(measureSize(SIZES[rows.length]));
+      renderScaling(rows);
+      if (rows.length < SIZES.length) setTimeout(next, 20);
+    };
+    next();
+  };
+  const renderScaling = (rows: ScaleRow[]) => {
+    const pending = SIZES.slice(rows.length)
+      .map((n) => `<tr class="pending"><td class="r">${num(n)}</td><td colspan="9" class="muted">${t('측정 중…', 'Measuring…')}</td></tr>`)
+      .join('');
     $('.scale-tbl').innerHTML = `<table>
       <thead><tr>
         <th class="r">|V|</th><th class="r">|E|</th>
@@ -137,7 +151,7 @@ export function mountAnalysisDemo(root: HTMLElement, cfg: AnalysisConfig): void 
         <td class="r">${num(r.d.comps)}</td><td class="r">${num(r.a.comps)}</td><td class="r">${num(r.arr.comps)}</td>
         <td class="r">×${(r.arr.comps / Math.max(1, r.d.comps)).toFixed(1)}</td><td class="r">${r.d.ms.toFixed(1)} / ${r.a.ms.toFixed(1)}</td></tr>`,
         )
-        .join('')}</tbody></table>`;
+        .join('')}${pending}</tbody></table>`;
 
     drawChart(
       $('.scale-chart') as unknown as SVGSVGElement,
@@ -148,8 +162,13 @@ export function mountAnalysisDemo(root: HTMLElement, cfg: AnalysisConfig): void 
         { name: t('A* · 힙', 'A* · heap'), cls: 's-a', ys: rows.map((r) => r.a.comps) },
       ],
       $('.chart-legend'),
+      [SIZES[0], SIZES[SIZES.length - 1]],
     );
 
+    if (rows.length < SIZES.length) {
+      $('.scale-note').textContent = '';
+      return;
+    }
     const f = rows[0];
     const l = rows[rows.length - 1];
     const k = l.n / f.n;
@@ -310,7 +329,7 @@ export function mountAnalysisDemo(root: HTMLElement, cfg: AnalysisConfig): void 
 }
 
 /** Log–log line chart drawn to one scale (ticks at powers of ten) */
-function drawChart(svg: SVGSVGElement, xs: number[], series: { name: string; cls: string; ys: number[] }[], legend: HTMLElement): void {
+function drawChart(svg: SVGSVGElement, xs: number[], series: { name: string; cls: string; ys: number[] }[], legend: HTMLElement, xDomain: [number, number] = [xs[0], xs[xs.length - 1]]): void {
   const W = 560;
   const H = 300;
   const L = 58;
@@ -319,9 +338,9 @@ function drawChart(svg: SVGSVGElement, xs: number[], series: { name: string; cls
   const B = 40;
   const all = series.flatMap((s) => s.ys).filter((y) => y > 0);
   const y0 = Math.floor(Math.log10(Math.min(...all)));
-  const y1 = Math.ceil(Math.log10(Math.max(...all)));
-  const x0 = Math.log10(xs[0]);
-  const x1 = Math.log10(xs[xs.length - 1]);
+  const y1 = Math.max(y0 + 1, Math.ceil(Math.log10(Math.max(...all))));
+  const x0 = Math.log10(xDomain[0]);
+  const x1 = Math.log10(xDomain[1]);
   const X = (x: number) => L + ((Math.log10(x) - x0) / (x1 - x0)) * (W - L - R);
   const Y = (y: number) => T + (1 - (Math.log10(Math.max(1, y)) - y0) / (y1 - y0)) * (H - T - B);
   const parts: string[] = [];

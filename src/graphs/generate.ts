@@ -81,6 +81,15 @@ function pointSegmentDist(p: Point, a: Point, b: Point): number {
 export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
   const rand = mulberry32(o.seed);
 
+  // A uniform grid (cell = minDist) so every step below only looks at nearby nodes and edges.
+  // The decisions are exactly the ones a full scan would make, so the same seed gives the same graph,
+  // but large graphs (thousands of nodes) build in well under a second instead of tens of seconds.
+  const cs = o.minDist;
+  const gw = Math.ceil(o.width / cs) + 1;
+  const gh = Math.ceil(o.height / cs) + 1;
+  const cellOf = (x: number, y: number) => [Math.min(gw - 1, Math.max(0, Math.floor(x / cs))), Math.min(gh - 1, Math.max(0, Math.floor(y / cs)))];
+  const nodeCells: number[][] = Array.from({ length: gw * gh }, () => []);
+
   // 1. Place nodes (random sampling that respects the minimum distance)
   const pos: Point[] = [];
   for (let attempts = 0; pos.length < o.n && attempts < o.n * 300; attempts++) {
@@ -88,19 +97,44 @@ export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
       x: o.margin + rand() * (o.width - 2 * o.margin),
       y: o.margin + rand() * (o.height - 2 * o.margin),
     };
-    if (pos.every((q) => dist(p, q) >= o.minDist)) pos.push(p);
+    const [cx, cy] = cellOf(p.x, p.y);
+    let ok = true;
+    for (let y = Math.max(0, cy - 1); ok && y <= Math.min(gh - 1, cy + 1); y++)
+      for (let x = Math.max(0, cx - 1); ok && x <= Math.min(gw - 1, cx + 1); x++)
+        for (const q of nodeCells[y * gw + x]) if (dist(p, pos[q]) < o.minDist) { ok = false; break; }
+    if (ok) {
+      nodeCells[cy * gw + cx].push(pos.length);
+      pos.push(p);
+    }
   }
   const n = pos.length;
 
   const pairs: [number, number][] = [];
   const has = new Set<string>();
   const key = (u: number, v: number) => (u < v ? `${u}-${v}` : `${v}-${u}`);
+  const edgeCells = new Map<number, number[]>();
+  /** Calls f for every grid cell that the box [x0,x1]×[y0,y1] touches */
+  const cellsIn = (x0: number, y0: number, x1: number, y1: number, f: (c: number) => void) => {
+    const [ax, ay] = cellOf(x0, y0);
+    const [bx, by] = cellOf(x1, y1);
+    for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) f(y * gw + x);
+  };
   const add = (u: number, v: number) => {
     has.add(key(u, v));
+    const e = pairs.length;
     pairs.push([u, v]);
+    const a = pos[u];
+    const b = pos[v];
+    cellsIn(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y), (c) => {
+      const list = edgeCells.get(c);
+      if (list) list.push(e);
+      else edgeCells.set(c, [e]);
+    });
   };
 
-  // 2. MST (Prim, O(n^2)) — a Euclidean MST has no crossing edges
+  // 2. MST (Prim, O(n^2)) — a Euclidean MST has no crossing edges. Squared distances: same order, no sqrt.
+  const xs = Float64Array.from(pos, (p) => p.x);
+  const ys = Float64Array.from(pos, (p) => p.y);
   const inTree = new Uint8Array(n);
   const best = new Float64Array(n).fill(Infinity);
   const parent = new Int32Array(n).fill(-1);
@@ -110,9 +144,14 @@ export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
     for (let v = 0; v < n; v++) if (!inTree[v] && (u === -1 || best[v] < best[u])) u = v;
     inTree[u] = 1;
     if (parent[u] !== -1) add(parent[u], u);
+    const ux = xs[u];
+    const uy = ys[u];
     for (let v = 0; v < n; v++) {
-      const d = dist(pos[u], pos[v]);
-      if (!inTree[v] && d < best[v]) {
+      if (inTree[v]) continue;
+      const dx = xs[v] - ux;
+      const dy = ys[v] - uy;
+      const d = dx * dx + dy * dy;
+      if (d < best[v]) {
         best[v] = d;
         parent[v] = u;
       }
@@ -122,26 +161,49 @@ export function makeGeoGraph(o: GeoGraphOptions): GeoGraph {
   // 3. k-nearest-neighbor edges (shortest first; skipped if they cross an edge or pass through a node)
   const cands: [number, number, number][] = [];
   for (let u = 0; u < n; u++) {
-    const near = [...Array(n).keys()]
-      .filter((v) => v !== u)
-      .sort((a, b) => dist(pos[u], pos[a]) - dist(pos[u], pos[b]))
-      .slice(0, o.k);
-    for (const v of near) cands.push([u, v, dist(pos[u], pos[v])]);
+    // Grow a square of cells around u until the k nearest are certainly inside it
+    const [cx, cy] = cellOf(pos[u].x, pos[u].y);
+    let near: { v: number; d: number }[] = [];
+    for (let r = 1; ; r++) {
+      near = [];
+      for (let y = Math.max(0, cy - r); y <= Math.min(gh - 1, cy + r); y++)
+        for (let x = Math.max(0, cx - r); x <= Math.min(gw - 1, cx + r); x++)
+          for (const v of nodeCells[y * gw + x]) if (v !== u) near.push({ v, d: dist(pos[u], pos[v]) });
+      near.sort((a, b) => a.d - b.d || a.v - b.v); // ties by index, like a stable sort over 0..n-1
+      const whole = cx - r <= 0 && cy - r <= 0 && cx + r >= gw - 1 && cy + r >= gh - 1;
+      if (whole || (near.length >= o.k && near[o.k - 1].d <= r * cs)) break;
+    }
+    for (const { v, d } of near.slice(0, o.k)) cands.push([u, v, d]);
   }
   cands.sort((a, b) => a[2] - b[2]);
-  for (const [u, v] of cands) {
-    if (has.has(key(u, v))) continue;
+  const seen = new Map<number, number>(); // edge → last candidate that looked at it
+  cands.forEach(([u, v], ci) => {
+    if (has.has(key(u, v))) return;
     const a = pos[u];
     const b = pos[v];
-    const crosses = pairs.some(([x, y]) => x !== u && x !== v && y !== u && y !== v && segmentsCross(a, b, pos[x], pos[y]));
-    if (crosses) continue;
+    let crosses = false;
+    cellsIn(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y), (c) => {
+      if (crosses) return;
+      for (const e of edgeCells.get(c) ?? []) {
+        if (seen.get(e) === ci) continue;
+        seen.set(e, ci);
+        const [x, y] = pairs[e];
+        if (x !== u && x !== v && y !== u && y !== v && segmentsCross(a, b, pos[x], pos[y])) {
+          crosses = true;
+          return;
+        }
+      }
+    });
+    if (crosses) return;
     let tooClose = false;
-    for (let w = 0; w < n && !tooClose; w++) {
-      if (w !== u && w !== v && pointSegmentDist(pos[w], a, b) < o.clearance) tooClose = true;
-    }
-    if (tooClose) continue;
+    const cl = o.clearance;
+    cellsIn(Math.min(a.x, b.x) - cl, Math.min(a.y, b.y) - cl, Math.max(a.x, b.x) + cl, Math.max(a.y, b.y) + cl, (c) => {
+      if (tooClose) return;
+      for (const w of nodeCells[c]) if (w !== u && w !== v && pointSegmentDist(pos[w], a, b) < cl) { tooClose = true; return; }
+    });
+    if (tooClose) return;
     add(u, v);
-  }
+  });
 
   // 4. Weights. The nodes and edges above are the same in both modes; only the costs differ.
   //  'distance': ceil(length / unit × multiplier), multiplier ≥ 1 → the plain straight-line heuristic is admissible
