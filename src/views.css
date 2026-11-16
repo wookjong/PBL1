@@ -57,12 +57,13 @@ input:focus-visible {
 }
 .inside .side { display: grid; gap: 16px; min-width: 0; }
 .inside.lower { margin-top: 0; }
-.heap-panel { margin-top: 16px; }
+.inside .side .heap-panel { margin-top: 0; }
+.code-panel { margin-top: 16px; }
 .heap-panel .sub { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
 @media (min-width: 1001px) {
   .big .inside:not(.lower) { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
 }
-.big .code-box { max-height: 500px; }
+.big .code-box { max-height: 360px; }
 .focus-ring { fill: none; stroke: #0f172a; stroke-width: 2.5; pointer-events: none; }
 .legend .dot.ring { background: #fff; border: 2.5px solid #0f172a; }
 .legend .bar.active { background: #16a34a; height: 4px; }
@@ -148,7 +149,7 @@ input:focus-visible {
 }
 .code-note { font-family: inherit; font-size: 11.5px; color: var(--muted); }
 .code-note code { font-size: 11px; background: #e2e8f0; }
-.code-box { max-height: 440px; overflow: auto; position: relative; }
+.code-box { max-height: 360px; overflow: auto; position: relative; }
 .inside.big-layout .code-box { max-height: 520px; }
 .code-view pre {
   margin: 0;
@@ -233,6 +234,15 @@ input:focus-visible {
 .tbl .r { text-align: right; }
 .tbl .muted { color: var(--muted); white-space: normal; min-width: 200px; }
 .tbl tr.base td { background: #f8fafc; }
+.tbl tr.mark.good td { background: #dcfce7; }
+.tbl tr.mark.bad td { background: #fee2e2; }
+.tbl tr.mark.good td:first-child { box-shadow: inset 4px 0 0 #16a34a; }
+.tbl tr.mark.bad td:first-child { box-shadow: inset 4px 0 0 #dc2626; }
+.tbl tr.mark td b { font-size: 14.5px; }
+.pq-kinds { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.pq-kinds > div { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); font-size: 13px; }
+.pq-kinds span { color: var(--muted); }
+.pq-kinds code { font-size: 12px; }
 .tbl .ok { color: var(--c-start); }
 .tbl .bad { color: var(--c-goal); }
 button.mini { padding: 2px 8px; font-size: 12px; }

@@ -44,21 +44,9 @@ const PQ_LABEL: Record<PQKind, () => string> = {
 };
 
 const PQ_NOTE: Record<PQKind, () => string> = {
-  array: () =>
-    t(
-      '정렬하지 않은 배열. insert·decreaseKey는 O(1)이지만 deletemin마다 전체를 훑어야 해서(O(V)) 전체가 O(V²)입니다.',
-      'Unsorted array. insert and decreaseKey are O(1), but every deletemin scans everything (O(V)), so the total is O(V²).',
-    ),
-  indexed: () =>
-    t(
-      '이진 힙 + 위치표(item → 배열 인덱스). decreaseKey가 항목을 제자리에서 sift-up 하므로 힙에는 노드마다 항목이 하나뿐입니다. O((V+E) log V).',
-      'Binary heap + position table (item → array index). decreaseKey sifts the entry up in place, so the heap holds at most one entry per node. O((V+E) log V).',
-    ),
-  lazy: () =>
-    t(
-      '이진 힙만 사용(위치표 없음). 더 짧은 경로가 나오면 새 항목을 하나 더 넣고, 옛 항목(stale)은 나중에 꺼낼 때 버립니다. 코드가 단순하고 실제로 가장 많이 쓰는 방식입니다. 시간 O(E log V), 힙 크기 O(E).',
-      'Binary heap only (no position table). When a shorter path appears it inserts another copy; the old (stale) copy is discarded when popped later. Simplest code and the most common choice in practice. Time O(E log V), heap size O(E).',
-    ),
+  array: () => t('배열: 꺼낼 때마다 전체를 훑음 · O(V²)', 'Array: every pop scans everything · O(V²)'),
+  indexed: () => t('힙 + decreaseKey: 키를 제자리에서 낮춤 · O((V+E) log V)', 'Heap + decreaseKey: lowers the key in place · O((V+E) log V)'),
+  lazy: () => t('lazy 힙: 새 항목을 넣고 낡은 것은 꺼낼 때 버림 · O(E log V)', 'Lazy heap: push a new copy, drop the old one when popped · O(E log V)'),
 };
 
 /**
@@ -94,8 +82,8 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
     <div class="intro">${
       cfg.intro ??
       `<p>${t(
-        '<b>한 단계 = 연산 하나</b>(deletemin, 간선 완화, insert, decreaseKey …)입니다. 왼쪽은 그래프, 오른쪽은 <b>지금 실행된 실제 코드 줄</b>과 그 순간의 변수 값, 아래는 우선순위 큐의 실제 모양입니다. 작은 예(5개 노드)로 시작해 16개 노드로 넓혀 보고, 450개 노드는 ② 큰 그래프 탭의 “코드·힙 단계 실행”에서 볼 수 있습니다. 세 알고리즘을 나란히 보려면 위의 “세 알고리즘 비교”를 누르세요.',
-        '<b>One step = one operation</b> (deletemin, edge relaxation, insert, decreaseKey, …). The graph is on the left; on the right are <b>the actual source lines that just ran</b> and the variables at that moment; below is the priority queue as it really is. Start with the 5-node example, then 16 nodes; the 450-node version is under “Step through code & heap” in tab ②. To see the three algorithms side by side, switch to “Compare all three” above.',
+        '<b>한 단계 = 연산 하나.</b> 그래프 · 우선순위 큐 · 실행 중인 코드를 함께 봅니다.',
+        '<b>One step = one operation.</b> Watch the graph, the priority queue and the running code together.',
       )}</p>`
     }</div>
     <div class="toolbar">
@@ -130,14 +118,12 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
         <div class="svg-wrap graph-slot"></div>
       </div>
       <div class="side">
-        <div class="panel code-panel">
-          <div class="code-tabs">
-            <button data-v="search" class="on">search.ts</button><button data-v="heap">heap.ts</button>
-          </div>
-          <div class="code-slot"></div>
+        <div class="panel heap-panel">
+          <h3>${t('우선순위 큐', 'Priority queue')} <span class="sub-inline pq-name"></span></h3>
+          <p class="sub heap-sub"></p>
+          <div class="heap-slot"></div>
         </div>
         <div class="panel op">
-          <h3>${t('현재 단계', 'Current step')}</h3>
           <div class="op-title"></div>
           <div class="op-text"></div>
           <div class="op-heap"></div>
@@ -146,10 +132,11 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
         </div>
       </div>
     </div>
-    <div class="panel heap-panel">
-      <h3>${t('우선순위 큐', 'Priority queue')} <span class="sub-inline pq-name"></span></h3>
-      <p class="sub heap-sub"></p>
-      <div class="heap-slot"></div>
+    <div class="panel code-panel">
+      <div class="code-tabs">
+        <button data-v="search" class="on">search.ts</button><button data-v="heap">heap.ts</button>
+      </div>
+      <div class="code-slot"></div>
     </div>
     <h3 class="cards-title">${t('이 구현의 핵심 최적화 (실시간)', 'Key optimizations in this implementation (live)')}</h3>
     <div class="opt-cards"></div>
@@ -166,7 +153,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
 
   const $ = <E extends Element = HTMLElement>(sel: string) => root.querySelector<E>(sel)!;
   if (cfg.levels.length < 2) $('.lvl-box').hidden = true;
-  const note = t('실제 소스 · <code>yield</code> 줄(시각화 훅)은 숨김 · 줄 번호는 파일 그대로', 'actual source · <code>yield</code> lines (visualizer hooks) hidden · real line numbers');
+  const note = t('실제 소스 (주석·시각화 줄 생략)', 'actual source (comments and visualizer lines hidden)');
   const searchCode = new CodeView(searchSrc, 'src/algo/search.ts', /^export function\* bestFirstSearch/);
   const heapCode = new CodeView(heapSrc, 'src/algo/heap.ts', /^function before/);
   searchCode.setNote(note);
@@ -406,7 +393,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
     const n = level.graph.n;
     const staleNow = (run.pq?.entries() ?? []).filter(isStale).length;
     const card = (key: CardKey, title: string, body: string, live: string) =>
-      `<div class="ocard${hot === key ? ' hot' : ''}"><h4>${title}</h4><p>${body}</p><div class="live">${live}</div></div>`;
+      `<div class="ocard${hot === key ? ' hot' : ''}" title="${body.replace(/"/g, '&quot;')}"><h4>${title}</h4><div class="live">${live}</div></div>`;
     const cards: string[] = [];
     if (kind === 'array')
       cards.push(
@@ -531,11 +518,8 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
     heapView.render({ kind, entries, trace: tr, label, isStale });
     $('.heap-sub').textContent =
       kind === 'array'
-        ? t(`크기 ${entries.length}. 정렬되어 있지 않아 deletemin마다 전부 훑습니다.`, `Size ${entries.length}. Not sorted, so every deletemin scans all of it.`)
-        : t(
-            `크기 ${entries.length}. 루트(a[0])에 항상 가장 작은 키가 있습니다. a[i]의 자식은 a[2i+1], a[2i+2]. 점선·취소선 = stale 항목, 주황 = 방금 sift 경로.`,
-            `Size ${entries.length}. The root (a[0]) always holds the smallest key. Children of a[i] are a[2i+1] and a[2i+2]. Dashed, struck through = stale entry; orange = the sift path just taken.`,
-          );
+        ? t(`크기 ${entries.length}`, `Size ${entries.length}`)
+        : t(`크기 ${entries.length} · 맨 위 = 최소 · 주황 = 방금 이동 · 점선 = stale`, `Size ${entries.length} · top = minimum · orange = just moved · dashed = stale`);
     const d = s ? describe(s) : null;
     renderOp(d);
     renderCounters();
@@ -557,7 +541,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
     const b = big();
     view = new GraphView(level.graph, { nodeR: level.nodeR, showLabels: !b, showWeights: !b, showValues: !b });
     $('.graph-slot').replaceChildren(view.el);
-    heapView = b ? new HeapView({ width: 1200, treeLevels: 5, arrayCells: 26, arrayRows: 16 }) : new HeapView({ width: 900, treeLevels: 4, arrayCells: 18, arrayRows: 2 });
+    heapView = b ? new HeapView({ width: 520, treeLevels: 4, arrayCells: 13, arrayRows: 2 }) : new HeapView({ width: 420, treeLevels: 4, arrayCells: 10, arrayRows: 1 });
     $('.heap-slot').replaceChildren(heapView.el);
     root.classList.toggle('big', b);
   };

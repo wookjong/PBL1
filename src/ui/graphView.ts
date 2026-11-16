@@ -46,13 +46,13 @@ export class GraphView {
     const labelLayer = el('g', { class: 'labels' }, svg);
     this.focusRing = el('circle', { r: opts.nodeR + Math.max(3, opts.nodeR * 0.35), class: 'focus-ring', visibility: 'hidden' }, svg);
 
-    for (const { u, v, w, slow } of g.edges) {
+    for (const { u, v, w } of g.edges) {
       const a = g.pos[u];
       const b = g.pos[v];
-      const line = el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: slow ? 'edge slow' : 'edge' }, edgeLayer);
+      const line = el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: 'edge' }, edgeLayer);
       this.edgeEls.set(this.key(u, v), line);
       if (opts.showWeights) {
-        const t = el('text', { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, class: slow ? 'weight slow' : 'weight' }, weightLayer);
+        const t = el('text', { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, class: 'weight' }, weightLayer);
         t.textContent = String(w);
       }
     }

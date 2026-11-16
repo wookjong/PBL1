@@ -91,14 +91,8 @@ function mountModes(el: HTMLElement, graph: GeoGraph, first: 'inside' | 'compare
     </span>
     <p class="weights-note">${
       graph.weights === 'random'
-        ? t(
-            `간선 비용이 길이와 상관없이 <b>1~${graph.maxW}</b> 사이 정수로 무작위입니다(노드와 간선 연결은 같고 비용만 다름). 그래서 직선거리 h를 그대로 쓰면 실제 비용보다 클 수 있어, 모든 간선의 <b>비용 ÷ 길이</b> 중 최솟값 <b>c = ${graph.hScale.toFixed(3)}</b>을 곱한 <b>h = c × 직선거리</b>를 씁니다. 이 h는 실제 비용을 넘지 않아 최단 경로가 보장되지만, 작아진 만큼 A*의 이득도 줄어듭니다. (작은 그래프의 Lv1 5개 노드 예제는 손으로 정한 비용이라 바뀌지 않습니다. ④ 탭은 항상 거리 비례 그래프로 측정합니다.)`,
-            `Edge costs are random integers from <b>1 to ${graph.maxW}</b>, unrelated to length (same nodes and edges, only the costs differ). Plain straight-line h could then exceed the true cost, so A* uses <b>h = c × straight-line</b> with <b>c = ${graph.hScale.toFixed(3)}</b>, the smallest <b>cost ÷ length</b> over all edges. This h never overestimates, so the path is still shortest, but the smaller h also shrinks A*'s advantage. (The hand-made 5-node example (Lv1) keeps its costs. Tab ④ always measures the length-based graph.)`,
-          )
-        : t(
-            '간선 비용 = ⌈길이 ÷ unit⌉ (정체 간선은 2~4배). 비용이 길이 이상이라 직선거리 h를 그대로 써도 실제 비용을 넘지 않습니다.',
-            'Edge cost = ⌈length ÷ unit⌉ (congested edges 2–4×). Every cost is at least the length, so plain straight-line h never exceeds the true cost.',
-          )
+        ? t(`비용 1~${graph.maxW} 무작위 · h = ${graph.hScale.toFixed(3)} × 직선거리`, `costs random 1–${graph.maxW} · h = ${graph.hScale.toFixed(3)} × straight-line`)
+        : t('비용 ∝ 길이 · h = 직선거리', 'cost ∝ length · h = straight-line')
     }</p>
     <div class="mode-inside" hidden></div>
     <div class="mode-compare" hidden></div>`;
@@ -146,12 +140,8 @@ mountModes(panel('small'), smallGraph, 'inside', {
   compare: (box) =>
     mountGraphDemo(box, {
       description: t(
-        `<p>노드 ${smallGraph.n}개짜리 작은 그래프입니다(단계 실행의 Lv2와 같은 그래프). 간선의 숫자는 비용이고, 점선 간선은 <i>정체</i>(직선 길이보다 비쌈)입니다.
-        각 노드 아래 값은 우선순위 큐의 키 <b>f = g + h</b>입니다 (Dijkstra는 h = 0이라 f = g).
-        <b>한 단계 = 각 알고리즘이 노드 하나를 확정</b>하므로 누가 먼저 도착점에 닿는지 비교할 수 있습니다. 연산 하나하나는 “코드·힙 단계 실행”에서 볼 수 있습니다.</p>`,
-        `<p>A small graph with ${smallGraph.n} nodes (the same graph as Lv2 of the step-through). Numbers on edges are costs; dashed edges are <i>congested</i> (more expensive than their straight-line length).
-        The value under each node is its priority-queue key <b>f = g + h</b> (for Dijkstra h = 0, so f = g).
-        <b>One step = each algorithm settles one node</b>, so you can compare which one reaches the goal first. Individual operations are shown under “Step through code &amp; heap”.</p>`,
+        `<p><b>한 단계 = 각 알고리즘이 노드 하나를 확정.</b> 노드 아래 값 = 큐의 키 f = g + h</p>`,
+        `<p><b>One step = each algorithm settles one node.</b> Value under a node = queue key f = g + h</p>`,
       ),
       graph: smallGraph,
       view: { nodeR: 14, showLabels: true, showWeights: true, showValues: true },
@@ -164,16 +154,15 @@ mountModes(panel('large'), largeGraph, 'compare', {
     mountInsideDemo(box, {
       levels: [{ key: 'large', label: t(`노드 ${largeGraph.n}개`, `${largeGraph.n} nodes`), graph: largeGraph, nodeR: 4.5, big: true }],
       intro: t(
-        `<p>① 탭과 같은 단계 실행을 노드 ${largeGraph.n}개짜리 그래프에서 합니다. 노드 이름은 번호입니다. 큐가 커지므로 힙은 위 5층(31개)만 트리로 그리고, <b>배열은 전부</b> 아래에 펼칩니다. 빨리 넘기려면 <b>다음 확정 노드까지</b>를 누르거나 속도를 올리세요. <b>A* · h = 0</b>을 고르면 Dijkstra와 확정 순서가 끝까지 같은지 실시간으로 확인합니다.</p>`,
-        `<p>The same step-through as tab ①, on the ${largeGraph.n}-node graph. Node names are their index numbers. The queue gets big, so only the top 5 levels (31 entries) of the heap are drawn as a tree, and <b>the full array</b> is listed below it. Use <b>Next settled node</b> or raise the speed to move faster. Pick <b>A* · h = 0</b> to check live that it settles nodes in exactly Dijkstra's order.</p>`,
+        `<p><b>노드 ${largeGraph.n}개</b>에서 단계 실행 · 빨리 넘기려면 <b>다음 확정 노드까지</b></p>`,
+        `<p>Step-through on <b>${largeGraph.n} nodes</b> · use <b>Next settled node</b> to move faster</p>`,
       ),
     }),
   compare: (box) =>
     mountGraphDemo(box, {
       description: t(
-        `<p>노드 ${largeGraph.n}개짜리 큰 그래프입니다. Dijkstra는 시작점을 중심으로 원 모양으로 퍼지고, 좋은 휴리스틱을 쓴 A*는 도착점 쪽 좁은 띠만 탐색합니다. 그래프가 클수록 차이가 커집니다(④ 탭에서 측정).</p>`,
-        `<p>A large graph with ${largeGraph.n} nodes. Dijkstra spreads out in a circle around the start,
-        while A* with a good heuristic searches a narrow band toward the goal. The bigger the graph, the bigger the gap (measured in tab ④).</p>`,
+        `<p>Dijkstra는 <b>원 모양</b>으로 퍼지고, A*는 도착점 쪽 <b>좁은 띠</b>만 탐색합니다.</p>`,
+        `<p>Dijkstra spreads in a <b>circle</b>; A* searches a <b>narrow band</b> toward the goal.</p>`,
       ),
       graph: largeGraph,
       view: { nodeR: 4.5, showLabels: false, showWeights: false, showValues: false },

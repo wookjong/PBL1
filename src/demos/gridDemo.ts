@@ -61,13 +61,10 @@ export function mountGridDemo(root: HTMLElement): GridDemoApi {
   root.innerHTML = `
     <div class="intro">
       <p>${t(
-        `상하좌우로만 움직이고 칸에 들어갈 때 비용 1(진흙은 ${MUD_COST})입니다. 비용이 모두 1이면 Dijkstra는 BFS처럼 마름모꼴로 퍼지고, A*는 휴리스틱을 따라 도착점 쪽으로 향합니다.`,
-        `Moves are up/down/left/right only, and entering a cell costs 1 (mud costs ${MUD_COST}). When every cost is 1, Dijkstra spreads out in a diamond just like BFS, while A* uses its heuristic to head toward the goal.`,
+        `Dijkstra는 <b>마름모꼴</b>로 퍼지고, A*는 도착점 쪽으로 향합니다. 비용 1 (진흙 ${MUD_COST})`,
+        `Dijkstra spreads in a <b>diamond</b>; A* heads for the goal. Cost 1 (mud ${MUD_COST})`,
       )}</p>
-      <p class="hint">${t(
-        '빈 칸 위로 드래그하면 브러시로 칠하고, 같은 종류 칸 위로 드래그하면 지웁니다. <b>S</b>와 <b>G</b>는 드래그로 옮깁니다. 탐색을 끝까지 실행한 뒤에는 격자를 고치면 바로 다시 실행됩니다. ④ 분석 탭의 최악 사례도 ▶ 버튼으로 여기서 불러올 수 있습니다.',
-        'Drag over empty cells to paint with the brush; drag over cells of the same type to erase them. Drag <b>S</b> and <b>G</b> to move them. After a search has run to the end, any edit to the grid re-runs it instantly. The worst cases in the ④ analysis tab can be loaded here with their ▶ button.',
-      )}</p>
+      <p class="hint">${t('드래그: 벽·진흙 칠하기 / 지우기 · S, G 옮기기', 'Drag: paint or erase walls and mud · move S and G')}</p>
     </div>
     <div class="toolbar">
       <div class="player-slot"></div>

@@ -44,7 +44,8 @@ export class HeapView {
     const isHeap = kind !== 'array';
     const { width: W, treeLevels: TREE_LEVELS, arrayCells: ARRAY_CELLS, arrayRows } = this.o;
     const levelGap = 56;
-    const treeH = isHeap ? TREE_LEVELS * levelGap + 6 : 0;
+    const levelsUsed = Math.max(1, Math.min(TREE_LEVELS, Math.ceil(Math.log2(entries.length + 1))));
+    const treeH = isHeap ? levelsUsed * levelGap + 6 : 0; // only as tall as the levels actually in use
     const arrY = treeH + 28;
     const cap = ARRAY_CELLS * arrayRows;
     const rowsUsed = Math.max(1, Math.min(arrayRows, Math.ceil(entries.length / ARRAY_CELLS)));

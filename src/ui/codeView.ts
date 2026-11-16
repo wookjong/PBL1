@@ -27,18 +27,14 @@ function parse(src: string, from?: RegExp): Line[] {
     const raw = all[i];
     const tags = new Set<string>();
     const m = raw.match(/^(.*?)\s*\/\/(.*)$/);
-    if (!m || !/#\w/.test(m[2])) {
-      out.push({ no: i + 1, text: raw, tags });
-      continue;
-    }
-    const rest = m[2]
-      .replace(/#(\w+)/g, (_, tag: string) => {
-        tags.add(tag);
-        return '';
-      })
-      .trim();
+    if (m) m[2].replace(/#(\w+)/g, (_, tag: string) => (tags.add(tag), ''));
     if (tags.has('viz')) continue; // visualizer hook: not part of the algorithm
-    out.push({ no: i + 1, text: rest ? `${m[1]} // ${rest}` : m[1], tags });
+    // Comments are dropped so the panel shows only code; comment-only lines and doc blocks disappear
+    const code = (m ? m[1] : raw).replace(/\s+$/, '');
+    if (/^\s*(\/\*\*?|\*)/.test(code)) continue;
+    if (m && code.trim() === '') continue;
+    if (code.trim() === '' && out.length > 0 && out[out.length - 1].text.trim() === '') continue; // collapse blank runs
+    out.push({ no: i + 1, text: code, tags });
   }
   return out;
 }
