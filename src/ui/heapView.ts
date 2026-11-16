@@ -43,14 +43,15 @@ export class HeapView {
     const onPath = new Set(trace && trace.op !== 'scan' ? trace.path : []); // after a scan the hole is refilled, so no index to point at
     const isHeap = kind !== 'array';
     const { width: W, treeLevels: TREE_LEVELS, arrayCells: ARRAY_CELLS, arrayRows } = this.o;
-    const levelGap = 56;
+    // The drawing always has the same size (room for every tree level and array row), so the panel never
+    // changes height while the search runs; the tree spreads its levels out to fill that fixed area instead.
+    const treeH = isHeap ? TREE_LEVELS * 56 + 6 : 0;
     const levelsUsed = Math.max(1, Math.min(TREE_LEVELS, Math.ceil(Math.log2(entries.length + 1))));
-    const treeH = isHeap ? levelsUsed * levelGap + 6 : 0; // only as tall as the levels actually in use
+    const levelGap = levelsUsed > 1 ? Math.min(80, (treeH - 54) / (levelsUsed - 1)) : 0;
     const arrY = treeH + 28;
     const cap = ARRAY_CELLS * arrayRows;
-    const rowsUsed = Math.max(1, Math.min(arrayRows, Math.ceil(entries.length / ARRAY_CELLS)));
     const rowH = 50;
-    const H = arrY + rowsUsed * rowH + 6;
+    const H = arrY + arrayRows * rowH + 6;
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
 
     const add = (tag: string, attrs: Record<string, string | number>, text?: string) => {
@@ -71,8 +72,7 @@ export class HeapView {
     };
 
     if (entries.length === 0) {
-      svg.setAttribute('viewBox', `0 0 ${W} 80`);
-      add('text', { x: W / 2, y: 40, class: 'h-empty' }, t('큐가 비어 있음', 'queue is empty'));
+      add('text', { x: W / 2, y: H / 2, class: 'h-empty' }, t('큐가 비어 있음', 'queue is empty'));
       return;
     }
 

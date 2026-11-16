@@ -141,12 +141,12 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
     } else if (r.finished) status = t('경로 없음', 'No path');
     const st = r.pqStats;
     p.stats.innerHTML = `
-      <div><span>${t('확정 노드', 'Nodes settled')}</span><b>${r.visitedCount}</b> / ${g.n} (${Math.round((r.visitedCount / g.n) * 100)}%)</div>
+      <div class="full"><span>${t('확정 노드', 'Nodes settled')}</span><b>${r.visitedCount}</b> / ${g.n} (${Math.round((r.visitedCount / g.n) * 100)}%)</div>
       <div><span>${t('큐 삽입', 'Queue pushes')}</span><b>${r.pushCount}</b></div>
       <div><span>${t('키 비교', 'Key comparisons')}</span><b>${num(st.comps)}</b></div>
       <div><span>stale</span><b>${r.staleCount}</b></div>
-      <div><span>${t('경로 비용', 'Path cost')}</span>${cost}</div>
-      <div><span>${t('상태', 'Status')}</span>${status}</div>${p === panels[1] && badKey === 'zero' ? sameAsDijkstra(p) : ''}`;
+      <div><span>${t('상태', 'Status')}</span>${status}</div>
+      <div class="full"><span>${t('경로 비용', 'Path cost')}</span>${cost}</div>${p === panels[1] && badKey === 'zero' ? sameAsDijkstra(p) : ''}`;
   };
 
   const player = new Player(

@@ -1,3 +1,4 @@
+html { scrollbar-gutter: stable; }
 :root {
   --bg: #f8fafc;
   --card: #ffffff;
@@ -272,6 +273,9 @@ select {
   color: var(--muted);
   margin-right: 8px;
 }
+/* one line per stat, so the panel keeps its height while the numbers change */
+.stats > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 18px; min-width: 0; }
+.stats > div span { margin-right: 6px; }
 
 .stats .ok { color: var(--c-start); }
 .stats .bad { color: var(--c-goal); }

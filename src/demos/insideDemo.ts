@@ -128,7 +128,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
           <div class="op-text"></div>
           <div class="op-heap"></div>
           <div class="op-opts"></div>
-          <table class="vars"></table>
+          <div class="vars"></div>
         </div>
       </div>
     </div>
@@ -498,7 +498,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
     $('.op-heap').textContent = traceText(tr, kind);
     $('.op-opts').innerHTML = d.opts.map((o) => `<span class="opt">⚡ OPT · ${o}</span>`).join('');
     $('.vars').innerHTML = vars(s)
-      .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`)
+      .map(([k, v]) => `<span><i>${k}</i><b>${v}</b></span>`)
       .join('');
     searchCode.highlight(d.code, dimTags());
     heapCode.highlight(heapTags(tr?.op));
