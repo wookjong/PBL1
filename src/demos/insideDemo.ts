@@ -21,6 +21,7 @@ export interface InsideLevel {
 
 export interface InsideConfig {
   levels: InsideLevel[];
+  speed?: number; // initial playback speed
   intro?: string; // HTML; replaces the default intro
 }
 
@@ -595,7 +596,7 @@ export function mountInsideDemo(root: HTMLElement, cfg: InsideConfig): void {
       },
       render,
     },
-    { speed: level.big ? 20 : 2 },
+    { speed: cfg.speed ?? (level.big ? 20 : 2) },
   );
   $('.player-slot').appendChild(player.el);
   $<HTMLButtonElement>('.next-visit').onclick = () => player.stepUntil(() => run.last?.type === 'visit' || run.finished);

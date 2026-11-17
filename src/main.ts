@@ -132,6 +132,7 @@ function mountModes(el: HTMLElement, graph: GeoGraph, first: 'inside' | 'compare
 mountModes(panel('small'), smallGraph, 'inside', {
   inside: (box) =>
     mountInsideDemo(box, {
+      speed: 4,
       levels: [
         { key: 'tiny', label: t('Lv1 · 노드 5개 (손으로 따라가기)', 'Lv1 · 5 nodes (follow by hand)'), graph: tinyGraph(), nodeR: 18 },
         { key: 'small', label: t(`Lv2 · 노드 ${smallGraph.n}개`, `Lv2 · ${smallGraph.n} nodes`), graph: smallGraph, nodeR: 14 },
@@ -145,7 +146,8 @@ mountModes(panel('small'), smallGraph, 'inside', {
       ),
       graph: smallGraph,
       view: { nodeR: 14, showLabels: true, showWeights: true, showValues: true },
-      speed: 2,
+      speed: 5,
+      badHeuristic: 'over',
     }),
 });
 

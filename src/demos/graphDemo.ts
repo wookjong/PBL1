@@ -11,6 +11,7 @@ export interface GraphDemoConfig {
   description: string; // HTML
   graph: GeoGraph;
   view: GraphViewOptions;
+  badHeuristic?: 'zero' | 'weak' | 'over';
   speed: number; // default playback speed (steps per second)
 }
 
@@ -65,7 +66,7 @@ export function mountGraphDemo(root: HTMLElement, cfg: GraphDemoConfig): void {
       h: (v) => 3 * hGood(v),
     },
   };
-  let badKey = 'weak';
+  let badKey: string = cfg.badHeuristic ?? 'weak';
 
   // Optimal cost (reference for checking each result)
   const ref = new SearchRun(g.n, dijkstra(g, s, goal));
